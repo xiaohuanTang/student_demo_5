@@ -1,0 +1,35 @@
+CREATE DATABASE IF NOT EXISTS student_score_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+USE student_score_db;
+
+DROP TABLE IF EXISTS score;
+DROP TABLE IF EXISTS course;
+DROP TABLE IF EXISTS student;
+
+CREATE TABLE student (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    student_no VARCHAR(32) NOT NULL UNIQUE COMMENT '学号',
+    name VARCHAR(50) NOT NULL COMMENT '姓名',
+    gender VARCHAR(10) NOT NULL COMMENT '性别',
+    age INT NOT NULL COMMENT '年龄',
+    class_name VARCHAR(50) NOT NULL COMMENT '班级',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生表';
+
+CREATE TABLE course (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    course_name VARCHAR(80) NOT NULL UNIQUE COMMENT '课程名称',
+    teacher VARCHAR(50) NOT NULL COMMENT '任课教师',
+    credit DECIMAL(3,1) NOT NULL COMMENT '学分'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='课程表';
+
+CREATE TABLE score (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    student_id BIGINT NOT NULL COMMENT '学生ID',
+    course_id BIGINT NOT NULL COMMENT '课程ID',
+    score DECIMAL(5,2) NOT NULL COMMENT '成绩',
+    exam_date DATE NOT NULL COMMENT '考试日期',
+    CONSTRAINT fk_score_student FOREIGN KEY (student_id) REFERENCES student(id) ON DELETE CASCADE,
+    CONSTRAINT fk_score_course FOREIGN KEY (course_id) REFERENCES course(id) ON DELETE CASCADE,
+    CONSTRAINT uk_student_course UNIQUE (student_id, course_id),
+    CONSTRAINT ck_score_range CHECK (score >= 0 AND score <= 100)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='成绩表';

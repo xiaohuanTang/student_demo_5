@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>学生成绩统计系统</title>
+    <style>
+        body { font-family: Arial, "Microsoft YaHei", sans-serif; margin: 24px; background: #f6f7fb; color: #222; }
+        h1 { margin-bottom: 8px; }
+        .card { background: #fff; border-radius: 10px; padding: 18px; margin: 16px 0; box-shadow: 0 2px 10px rgba(0,0,0,.06); }
+        input, select, button { padding: 8px; margin: 4px; border: 1px solid #ccc; border-radius: 6px; }
+        button { cursor: pointer; background: #1677ff; color: white; border: none; }
+        button.danger { background: #d93025; }
+        table { border-collapse: collapse; width: 100%; margin-top: 12px; background: white; }
+        th, td { border: 1px solid #e5e5e5; padding: 8px; text-align: center; }
+        th { background: #f0f3f8; }
+        .tabs button { background: #4d5969; }
+        .tabs button.active { background: #1677ff; }
+        .hidden { display: none; }
+        .tip { color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+<h1>学生成绩统计系统</h1>
+<div class="tip">Spring Boot + MyBatis + MySQL，适合 IDEA 直接导入运行。</div>
+
+<div class="tabs card">
+    <button onclick="showTab('students')" class="active">学生管理</button>
+    <button onclick="showTab('courses')">课程管理</button>
+    <button onclick="showTab('scores')">成绩录入</button>
+    <button onclick="showTab('stats')">统计查询</button>
+</div>
+
+<div id="students" class="card tab">
+    <h2>学生管理</h2>
+    <input id="studentNo" placeholder="学号">
+    <input id="studentName" placeholder="姓名">
+    <select id="gender"><option>男</option><option>女</option></select>
+    <input id="age" type="number" placeholder="年龄">
+    <input id="className" placeholder="班级">
+    <button onclick="addStudent()">新增学生</button>
+    <table><thead><tr><th>ID</th><th>学号</th><th>姓名</th><th>性别</th><th>年龄</th><th>班级</th><th>操作</th></tr></thead><tbody id="studentTable"></tbody></table>
+</div>
+
+<div id="courses" class="card tab hidden">
+    <h2>课程管理</h2>
+    <input id="courseName" placeholder="课程名称">
+    <input id="teacher" placeholder="任课教师">
+    <input id="credit" type="number" step="0.5" placeholder="学分">
+    <button onclick="addCourse()">新增课程</button>
+    <table><thead><tr><th>ID</th><th>课程</th><th>教师</th><th>学分</th><th>操作</th></tr></thead><tbody id="courseTable"></tbody></table>
+</div>
+
+<div id="scores" class="card tab hidden">
+    <h2>成绩录入</h2>
+    <select id="scoreStudent"></select>
+    <select id="scoreCourse"></select>
+    <input id="scoreValue" type="number" step="0.5" placeholder="成绩">
+    <input id="examDate" type="date">
+    <button onclick="addScore()">新增成绩</button>
+    <table><thead><tr><th>ID</th><th>学号</th><th>姓名</th><th>班级</th><th>课程</th><th>成绩</th><th>考试日期</th><th>操作</th></tr></thead><tbody id="scoreTable"></tbody></table>
+</div>
+
+<div id="stats" class="card tab hidden">
+    <h2>统计查询</h2>
+    <button onclick="loadStudentStats()">学生排名</button>
+    <button onclick="loadCourseStats()">课程统计</button>
+    <button onclick="loadClassStats()">班级统计</button>
+    <div id="statsResult"></div>
+</div>
+
+<script>
+const api = path => `/api${path}`;
+
+function showTab(id) {
+    document.querySelectorAll('.tab').forEach(el => el.classList.add('hidden'));
+    document.getElementById(id).classList.remove('hidden');
+    document.querySelectorAll('.tabs button').forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+    refreshAll();
+}
+
+async function request(url, options = {}) {
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+    if (!res.ok) {
+        const text = await res.text();
+        alert(text);
+        throw new Error(text);
+    }
+    const contentType = res.headers.get('content-type') || '';
+    return contentType.includes('application/json') ? res.json() : null;
+}
+
+async function refreshAll() {
+    await Promise.all([loadStudents(), loadCourses(), loadScores()]);
+}
+
+async function loadStudents() {
+    const data = await request(api('/students'));
+    studentTable.innerHTML = data.map(s => `<tr>
+        <td>${s.id}</td><td>${s.studentNo}</td><td>${s.name}</td><td>${s.gender}</td><td>${s.age}</td><td>${s.className}</td>
+        <td><button class="danger" onclick="deleteStudent(${s.id})">删除</button></td></tr>`).join('');
+    scoreStudent.innerHTML = data.map(s => `<option value="${s.id}">${s.studentNo} - ${s.name}</option>`).join('');
+}
+
+async function addStudent() {
+    await request(api('/students'), { method: 'POST', body: JSON.stringify({
+        studentNo: studentNo.value, name: studentName.value, gender: gender.value,
+        age: Number(age.value), className: className.value
+    })});
+    studentNo.value = studentName.value = age.value = className.value = '';
+    await refreshAll();
+}
+
+async function deleteStudent(id) {
+    if (confirm('删除学生会同时删除该学生成绩，确定吗？')) {
+        await request(api(`/students/${id}`), { method: 'DELETE' });
+        await refreshAll();
+    }
+}
+
+async function loadCourses() {
+    const data = await request(api('/courses'));
+    courseTable.innerHTML = data.map(c => `<tr>
+        <td>${c.id}</td><td>${c.courseName}</td><td>${c.teacher}</td><td>${c.credit}</td>
+        <td><button class="danger" onclick="deleteCourse(${c.id})">删除</button></td></tr>`).join('');
+    scoreCourse.innerHTML = data.map(c => `<option value="${c.id}">${c.courseName}</option>`).join('');
+}
+
+async function addCourse() {
+    await request(api('/courses'), { method: 'POST', body: JSON.stringify({
+        courseName: courseName.value, teacher: teacher.value, credit: Number(credit.value)
+    })});
+    courseName.value = teacher.value = credit.value = '';
+    await refreshAll();
+}
+
+async function deleteCourse(id) {
+    if (confirm('删除课程会同时删除该课程成绩，确定吗？')) {
+        await request(api(`/courses/${id}`), { method: 'DELETE' });
+        await refreshAll();
+    }
+}
+
+async function loadScores() {
+    const data = await request(api('/scores'));
+    scoreTable.innerHTML = data.map(s => `<tr>
+        <td>${s.id}</td><td>${s.studentNo}</td><td>${s.studentName}</td><td>${s.className}</td><td>${s.courseName}</td><td>${s.score}</td><td>${s.examDate}</td>
+        <td><button class="danger" onclick="deleteScore(${s.id})">删除</button></td></tr>`).join('');
+}
+
+async function addScore() {
+    await request(api('/scores'), { method: 'POST', body: JSON.stringify({
+        studentId: Number(scoreStudent.value), courseId: Number(scoreCourse.value),
+        score: Number(scoreValue.value), examDate: examDate.value
+    })});
+    scoreValue.value = examDate.value = '';
+    await refreshAll();
+}
+
+async function deleteScore(id) {
+    await request(api(`/scores/${id}`), { method: 'DELETE' });
+    await refreshAll();
+}
+
+function renderTable(headers, rows) {
+    return `<table><thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+async function loadStudentStats() {
+    const data = await request(api('/stats/students'));
+    statsResult.innerHTML = renderTable(['排名','学号','姓名','班级','课程数','总分','平均分'],
+        data.map(x => `<tr><td>${x.rankNo}</td><td>${x.studentNo}</td><td>${x.studentName}</td><td>${x.className}</td><td>${x.courseCount}</td><td>${x.totalScore}</td><td>${x.averageScore}</td></tr>`).join(''));
+}
+
+async function loadCourseStats() {
+    const data = await request(api('/stats/courses'));
+    statsResult.innerHTML = renderTable(['课程','人数','平均分','最高分','最低分','及格率%'],
+        data.map(x => `<tr><td>${x.courseName}</td><td>${x.studentCount}</td><td>${x.averageScore ?? ''}</td><td>${x.maxScore ?? ''}</td><td>${x.minScore ?? ''}</td><td>${x.passRate ?? ''}</td></tr>`).join(''));
+}
+
+async function loadClassStats() {
+    const data = await request(api('/stats/classes'));
+    statsResult.innerHTML = renderTable(['班级','人数','平均分','最高分','最低分'],
+        data.map(x => `<tr><td>${x.className}</td><td>${x.studentCount}</td><td>${x.averageScore ?? ''}</td><td>${x.maxScore ?? ''}</td><td>${x.minScore ?? ''}</td></tr>`).join(''));
+}
+
+refreshAll();
+</script>
+</body>
+</html>
